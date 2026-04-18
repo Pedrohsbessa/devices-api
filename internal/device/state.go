@@ -16,6 +16,7 @@ import (
 // are valid values; any other input is rejected at parse time.
 type State string
 
+// Canonical Device states. Any other value is rejected at parse time.
 const (
 	StateAvailable State = "available"
 	StateInUse     State = "in-use"

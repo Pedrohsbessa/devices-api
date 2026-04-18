@@ -1,0 +1,99 @@
+# golangci-lint v2 configuration.
+# Run with `make lint`.
+
+version: "2"
+
+run:
+  timeout: 5m
+  # Include test files in the analysis.
+  tests: true
+
+linters:
+  default: none
+  enable:
+    # Correctness.
+    - errcheck       # unchecked errors
+    - govet          # stdlib static analysis
+    - staticcheck    # rich static analyzer suite
+    - ineffassign    # ineffectual assignments
+    - unused         # unused code
+    - bodyclose      # http.Response.Body must be closed
+    - rowserrcheck   # sql.Rows.Err must be checked
+    - errorlint      # proper errors.Is / %w usage
+
+    # Security.
+    - gosec
+
+    # Style and quality.
+    - revive
+    - misspell
+    - gocritic
+    - unconvert      # unnecessary type conversions
+
+  settings:
+    gosec:
+      excludes:
+        # Covered by errcheck with better ergonomics.
+        - G104
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+          arguments:
+            - checkPrivateReceivers
+            - disableStutteringCheck
+        - name: package-comments
+          disabled: false
+        - name: var-naming
+          disabled: false
+        - name: context-as-argument
+          disabled: false
+        - name: error-return
+          disabled: false
+        - name: error-naming
+          disabled: false
+        - name: if-return
+          disabled: false
+        - name: increment-decrement
+          disabled: false
+        - name: indent-error-flow
+          disabled: false
+        - name: range
+          disabled: false
+        - name: receiver-naming
+          disabled: false
+        - name: superfluous-else
+          disabled: false
+        - name: time-naming
+          disabled: false
+    gocritic:
+      disabled-checks:
+        # commentFormatting flags a lot of valid // Package comments.
+        - commentFormatting
+
+  exclusions:
+    rules:
+      # Tests are allowed to skip some correctness checks that add
+      # noise without catching real bugs in test code.
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+          - bodyclose
+      # Main function may exit unconventionally; tolerate.
+      - path: cmd/api/main\.go
+        linters:
+          - gocritic
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Pedrohsbessa/devices-api
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

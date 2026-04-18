@@ -48,11 +48,14 @@ type responseRecorder struct {
 	bytes  int
 }
 
+// WriteHeader captures the status before delegating to the wrapped writer.
 func (rw *responseRecorder) WriteHeader(code int) {
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Write records the byte count (and defaults status to 200 if nothing set
+// the header before).
 func (rw *responseRecorder) Write(b []byte) (int, error) {
 	if rw.status == 0 {
 		rw.status = http.StatusOK
