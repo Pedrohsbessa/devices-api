@@ -10,6 +10,10 @@ import (
 	"github.com/Pedrohsbessa/devices-api/internal/platform/httpx"
 )
 
+// ErrInvalidQuery is returned by request-parsing helpers when a query
+// parameter is malformed. The mapper below classifies it as 400.
+var ErrInvalidQuery = errors.New("invalid query parameter")
+
 // ProblemFromError translates a domain (or application) error into an
 // RFC 7807 Problem. Known domain sentinels are mapped to specific
 // status/title pairs with a client-friendly detail; anything else
@@ -34,6 +38,10 @@ func ProblemFromError(err error, instance, requestID string) httpx.Problem {
 		errors.Is(err, device.ErrBrandRequired):
 		p.Status = http.StatusBadRequest
 		p.Title = "Validation Error"
+		p.Detail = err.Error()
+	case errors.Is(err, ErrInvalidQuery):
+		p.Status = http.StatusBadRequest
+		p.Title = "Bad Request"
 		p.Detail = err.Error()
 	default:
 		p.Status = http.StatusInternalServerError
