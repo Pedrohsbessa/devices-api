@@ -1,0 +1,35 @@
+# Version control metadata.
+.git
+.gitignore
+.gitattributes
+
+# IDE/editor configs.
+.idea
+.vscode
+.editorconfig
+*.swp
+*.swo
+
+# Local build and test artefacts.
+bin
+*.test
+*.out
+coverage.*
+cover.*
+
+# Dependency directories we never want in the context.
+vendor
+
+# Environment files — secrets never enter the image.
+.env
+.env.local
+.env.*.local
+
+# CI configs are not needed inside the image.
+.github
+.golangci.yml
+
+# OS cruft.
+.DS_Store
+Thumbs.db
+tmp
