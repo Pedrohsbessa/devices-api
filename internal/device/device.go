@@ -25,6 +25,12 @@ type Device struct {
 // NewDevice creates a Device with a freshly generated UUIDv7 and the
 // provided creation timestamp (injected for determinism and testability).
 // New devices start in StateAvailable.
+//
+// The timestamp is truncated to microsecond precision to match what
+// PostgreSQL TIMESTAMPTZ stores — without this, a clock that returns
+// sub-microsecond values (common on Linux) and the value read back from
+// the database would differ after a round-trip, even though they
+// represent "the same instant" semantically.
 func NewDevice(name, brand string, now time.Time) (*Device, error) {
 	name = strings.TrimSpace(name)
 	brand = strings.TrimSpace(brand)
@@ -43,7 +49,7 @@ func NewDevice(name, brand string, now time.Time) (*Device, error) {
 		name:      name,
 		brand:     brand,
 		state:     StateAvailable,
-		createdAt: now.UTC(),
+		createdAt: now.UTC().Truncate(time.Microsecond),
 	}, nil
 }
 
