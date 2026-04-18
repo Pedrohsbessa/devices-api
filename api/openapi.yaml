@@ -1,0 +1,387 @@
+openapi: 3.1.0
+info:
+  title: Devices API
+  version: 0.1.0
+  summary: REST API for managing device resources.
+  description: |
+    A device has an id, name, brand, state and creation time. The state
+    can be `available`, `in-use` or `inactive`.
+
+    Business rules enforced by the server:
+    - Creation time is immutable.
+    - `name` and `brand` cannot be updated while a device is `in-use`.
+    - A device that is `in-use` cannot be deleted.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: devices
+    description: Device management endpoints
+  - name: system
+    description: Health probes
+
+paths:
+  /devices:
+    post:
+      tags: [devices]
+      summary: Create a device
+      operationId: createDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDeviceRequest' }
+            example:
+              name: ThinkPad X1
+              brand: Lenovo
+      responses:
+        '201':
+          description: Device created
+          headers:
+            Location:
+              description: URL of the newly created device
+              schema: { type: string, format: uri-reference }
+              example: /devices/019da2aa-0c40-781e-a049-2e0a968a10a6
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Device' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+    get:
+      tags: [devices]
+      summary: List devices with optional filters
+      operationId: listDevices
+      description: |
+        `brand` and `state` are optional filters applied with AND. Results
+        are ordered from most recently created to oldest.
+      parameters:
+        - name: brand
+          in: query
+          schema: { type: string }
+          example: Lenovo
+        - name: state
+          in: query
+          schema: { $ref: '#/components/schemas/State' }
+        - name: limit
+          in: query
+          description: Maximum rows to return (clamped to 200).
+          schema: { type: integer, minimum: 0, default: 50, maximum: 200 }
+        - name: offset
+          in: query
+          description: Rows to skip for pagination.
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: Page of devices matching the filter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListDevicesResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /devices/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DeviceID'
+
+    get:
+      tags: [devices]
+      summary: Fetch a single device
+      operationId: getDevice
+      responses:
+        '200':
+          description: Device found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Device' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+    put:
+      tags: [devices]
+      summary: Replace a device (full update)
+      operationId: replaceDevice
+      description: Every field is required. To perform a partial update use PATCH.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReplaceDeviceRequest' }
+            example:
+              name: ThinkPad X1 Carbon
+              brand: Lenovo
+              state: available
+      responses:
+        '200':
+          description: Device replaced
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Device' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+    patch:
+      tags: [devices]
+      summary: Partially update a device
+      operationId: patchDevice
+      description: |
+        Send only the fields you wish to change. State transitions are
+        applied before name/brand so a single request can "unlock" an
+        `in-use` device and update its metadata in one call.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PatchDeviceRequest' }
+            examples:
+              unlock_and_rename:
+                summary: Unlock and rename in one call
+                value:
+                  state: available
+                  name: Renamed device
+              state_only:
+                summary: Transition state only
+                value:
+                  state: in-use
+      responses:
+        '200':
+          description: Device updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Device' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+    delete:
+      tags: [devices]
+      summary: Delete a device
+      operationId: deleteDevice
+      description: Devices in state `in-use` cannot be deleted and yield 409.
+      responses:
+        '204':
+          description: Device deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /healthz:
+    get:
+      tags: [system]
+      summary: Liveness probe
+      operationId: healthz
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /readyz:
+    get:
+      tags: [system]
+      summary: Readiness probe
+      operationId: readyz
+      description: Returns 200 only when all downstream dependencies respond.
+      responses:
+        '200':
+          description: Service and dependencies are ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ready }
+        '503':
+          description: A dependency is unreachable
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+components:
+  parameters:
+    DeviceID:
+      name: id
+      in: path
+      required: true
+      description: UUIDv7 of the device.
+      schema:
+        type: string
+        format: uuid
+      example: 019da2aa-0c40-781e-a049-2e0a968a10a6
+
+  schemas:
+    State:
+      type: string
+      enum: [available, in-use, inactive]
+      description: Lifecycle state of a device.
+
+    CreateDeviceRequest:
+      type: object
+      required: [name, brand]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1 }
+        brand: { type: string, minLength: 1 }
+
+    ReplaceDeviceRequest:
+      type: object
+      required: [name, brand, state]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1 }
+        brand: { type: string, minLength: 1 }
+        state: { $ref: '#/components/schemas/State' }
+
+    PatchDeviceRequest:
+      type: object
+      additionalProperties: false
+      description: All properties are optional. Omitted fields keep their current value.
+      properties:
+        name: { type: string, minLength: 1 }
+        brand: { type: string, minLength: 1 }
+        state: { $ref: '#/components/schemas/State' }
+
+    Device:
+      type: object
+      required: [id, name, brand, state, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 019da2aa-0c40-781e-a049-2e0a968a10a6
+        name:
+          type: string
+          example: ThinkPad X1
+        brand:
+          type: string
+          example: Lenovo
+        state:
+          $ref: '#/components/schemas/State'
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-04-18T22:15:46.496531Z'
+
+    ListDevicesResponse:
+      type: object
+      required: [data, limit, offset]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Device' }
+        limit:
+          type: integer
+          example: 50
+        offset:
+          type: integer
+          example: 0
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem Details object with an optional `request_id` extension for log correlation.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          example: 'about:blank'
+        title:
+          type: string
+          example: Device In Use
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+          example: device is in use
+        instance:
+          type: string
+          example: /devices/019da2aa-0c40-781e-a049-2e0a968a10a6
+        request_id:
+          type: string
+          description: UUID echoed back in the `X-Request-ID` header for log correlation.
+
+  responses:
+    BadRequest:
+      description: The request could not be parsed or violated a validation rule.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            validation_error:
+              summary: Validation error
+              value:
+                type: about:blank
+                title: Validation Error
+                status: 400
+                detail: 'device name is required'
+                instance: /devices
+                request_id: 4ae7c849-e6f7-44e4-8223-e83f1e6053f8
+            invalid_body:
+              summary: Malformed JSON
+              value:
+                type: about:blank
+                title: Bad Request
+                status: 400
+                detail: 'invalid request body: unexpected EOF'
+                instance: /devices
+
+    NotFound:
+      description: No device exists for the given id.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: about:blank
+            title: Device Not Found
+            status: 404
+            detail: device not found
+            instance: /devices/019da2aa-0c40-781e-a049-2e0a968a10a6
+
+    Conflict:
+      description: The operation is blocked by the current resource state (e.g. `in-use`).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: about:blank
+            title: Device In Use
+            status: 409
+            detail: device is in use
+            instance: /devices/019da2aa-0c40-781e-a049-2e0a968a10a6
+
+    PayloadTooLarge:
+      description: Request body exceeded the 64 KiB server limit.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    InternalServerError:
+      description: Unexpected server-side error. The `detail` is intentionally generic; correlate via `request_id`.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: about:blank
+            title: Internal Server Error
+            status: 500
+            detail: unexpected server error
+            instance: /devices
+            request_id: 4ae7c849-e6f7-44e4-8223-e83f1e6053f8

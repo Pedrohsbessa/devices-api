@@ -14,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Pedrohsbessa/devices-api/api"
 	"github.com/Pedrohsbessa/devices-api/internal/device"
 	"github.com/Pedrohsbessa/devices-api/internal/device/httpapi"
 	"github.com/Pedrohsbessa/devices-api/internal/device/postgres"
@@ -81,6 +82,8 @@ func run() error {
 	handler.Routes(mux)
 	mux.HandleFunc("GET /healthz", httpx.Healthz())
 	mux.HandleFunc("GET /readyz", httpx.Readyz(pool))
+	mux.HandleFunc("GET /openapi.yaml", httpx.OpenAPIHandler(api.OpenAPIYAML))
+	mux.HandleFunc("GET /docs", httpx.RedocHandler(api.RedocHTML))
 
 	// 7. Middleware chain. Applied from inside out, so the outermost
 	// here is RequestID — it runs first and gives every downstream
