@@ -313,7 +313,7 @@ Short rationale for the non-obvious choices. Per-commit context is in the git lo
 
 Deferred intentionally to keep scope focused. Each is a clean, additive change:
 
-- `updated_at` column plus optimistic concurrency (`ETag` + `If-Match` or a version column).
+- `updated_at` column plus optimistic concurrency (`ETag` + `If-Match` or a version column) — closes the lost-update window that read-before-mutate alone does not cover.
 - Composite index `(brand, state)` when profiling identifies the combined filter as a hot path.
 - Cursor-based pagination once offset costs begin to matter on large tables.
 - Authentication and authorization (JWT or API key) plus rate limiting.
@@ -323,6 +323,11 @@ Deferred intentionally to keep scope focused. Each is a clean, additive change:
 - Read cache (Redis) for `GET by id`.
 - Contract tests (Schemathesis or Pact) against the OpenAPI document.
 - Multi-arch Docker images (linux/amd64 + linux/arm64) via `buildx`.
+- **Runtime database resilience**: circuit breaker plus retry with exponential backoff on transient pgx errors, and `/readyz` flipping to 503 proactively instead of letting individual requests fail one by one.
+- **`pgxpool` tuning via env**: `DB_MAX_CONNS`, `DB_MIN_CONNS`, `DB_IDLE_TIMEOUT`. Today the pool uses the driver defaults.
+- **Strict `Content-Type` check + CORS middleware**. The handlers accept any body that parses as JSON; a stricter contract and browser-friendly CORS headers would land here.
+- **`Idempotency-Key` header on `POST /devices`** so client retries after an ambiguous failure cannot create duplicates.
+- **Pin Docker base images by SHA256 digest** instead of the floating `:16-alpine` / `:nonroot` tags, so a CI run in six months builds exactly what it builds today.
 
 ---
 

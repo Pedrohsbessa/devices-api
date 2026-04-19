@@ -14,6 +14,11 @@ import (
 // All fields are unexported and observed through methods. Mutations happen
 // exclusively through domain behaviors defined on *Device so that invariants
 // are always preserved. See the package doc for rationale.
+//
+// A *Device is NOT safe for concurrent use. Each request should read its
+// own aggregate from the repository, mutate it in memory and write it back
+// — this is the flow the service enforces. If a future use case requires
+// shared mutable aggregates, callers must synchronise externally.
 type Device struct {
 	id        uuid.UUID
 	name      string
